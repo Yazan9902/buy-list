@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f3ea" />
+    <title>Our Buy List</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" type="module"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">For our home</p>
+          <h1>Our Buy List</h1>
+          <p class="subtitle">
+            A little list for the things we need.
+            <span id="sync-status" class="sync-status">Saved on this device</span>
+          </p>
+        </div>
+        <div class="item-count" aria-live="polite">
+          <strong id="remaining-count">0</strong>
+          <span>left</span>
+        </div>
+      </header>
+
+      <section class="card add-card" aria-labelledby="add-title">
+        <h2 id="add-title">Add something</h2>
+        <form id="item-form">
+          <label class="item-name-field">
+            <span>Item name</span>
+            <input
+              id="item-name"
+              type="text"
+              maxlength="80"
+              placeholder="Milk, soap, coffee..."
+              autocomplete="off"
+              required
+            />
+          </label>
+
+          <div class="form-row">
+            <label>
+              <span>Quantity</span>
+              <input
+                id="item-quantity"
+                type="text"
+                maxlength="20"
+                placeholder="1"
+                autocomplete="off"
+              />
+            </label>
+
+            <label>
+              <span>Category</span>
+              <select id="item-category">
+                <option value="Groceries">Groceries</option>
+                <option value="Home">Home</option>
+                <option value="Personal">Personal</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+          </div>
+
+          <button class="primary-button" type="submit">Add to list</button>
+        </form>
+      </section>
+
+      <section class="list-section" aria-labelledby="list-title">
+        <div class="list-heading">
+          <h2 id="list-title">Things to buy</h2>
+          <button id="clear-bought" class="text-button" type="button">
+            Clear bought
+          </button>
+        </div>
+
+        <div class="filters" role="group" aria-label="Filter list">
+          <button class="filter active" data-filter="all" type="button">All</button>
+          <button class="filter" data-filter="active" type="button">To buy</button>
+          <button class="filter" data-filter="bought" type="button">Bought</button>
+        </div>
+
+        <ul id="item-list" class="item-list"></ul>
+
+        <div id="empty-state" class="empty-state">
+          <div class="empty-icon" aria-hidden="true">✓</div>
+          <h3>Your list is empty</h3>
+          <p>Add the first thing you need above.</p>
+        </div>
+      </section>
+    </main>
+
+    <template id="item-template">
+      <li class="list-item">
+        <button class="check-button" type="button" aria-label="Mark as bought">
+          <span aria-hidden="true">✓</span>
+        </button>
+        <div class="item-details">
+          <p class="item-title"></p>
+          <p class="item-meta"></p>
+        </div>
+        <button class="delete-button" type="button" aria-label="Delete item">
+          Delete
+        </button>
+      </li>
+    </template>
+  </body>
+</html>
