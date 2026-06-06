@@ -1,6 +1,7 @@
 import { firebaseConfig } from "./firebase-config.js";
 
 const listIdKey = "our-buy-list-id";
+const themeKey = "our-buy-list-theme";
 const firebaseVersion = "12.7.0";
 
 const form = document.querySelector("#item-form");
@@ -13,9 +14,15 @@ const emptyState = document.querySelector("#empty-state");
 const emptyTitle = emptyState.querySelector("h3");
 const emptyText = emptyState.querySelector("p");
 const remainingCount = document.querySelector("#remaining-count");
+const itemCountBox = document.querySelector(".item-count");
 const clearBoughtButton = document.querySelector("#clear-bought");
 const filterButtons = document.querySelectorAll(".filter");
+const filterPill = document.querySelector(".filter-pill");
 const syncStatus = document.querySelector("#sync-status");
+const themeToggle = document.querySelector("#theme-toggle");
+const shareButton = document.querySelector("#share-button");
+const installButton = document.querySelector("#install-button");
+const toast = document.querySelector("#toast");
 
 // Resolve the list id once. It lives in the shareable ?list= URL and is the
 // only thing tying both phones to the same list, so the local cache is keyed
@@ -26,7 +33,13 @@ const storageKey = `our-buy-list-items:${listId}`;
 let items = loadItems();
 let activeFilter = "all";
 let onlineStore = null;
+let knownIds = new Set(items.map((item) => item.id)); // for entrance animations
+let installPrompt = null;
+let toastTimer = null;
 
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* -------------------- Storage -------------------- */
 function loadItems() {
   try {
     return JSON.parse(localStorage.getItem(storageKey)) ?? [];
@@ -50,7 +63,6 @@ function getListId() {
   const cleanId = rawId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 80);
   localStorage.setItem(listIdKey, cleanId);
 
-  // Keep the sanitized id visible in the URL so it can be shared as-is.
   if (url.searchParams.get("list") !== cleanId) {
     url.searchParams.set("list", cleanId);
     window.history.replaceState({}, "", url);
@@ -59,10 +71,33 @@ function getListId() {
   return cleanId;
 }
 
-function isFirebaseConfigured() {
-  return Object.values(firebaseConfig).every(
-    (value) => value && !value.startsWith("PASTE_"),
-  );
+/* -------------------- Theme -------------------- */
+function applyTheme(theme) {
+  if (theme === "light" || theme === "dark") {
+    document.documentElement.dataset.theme = theme;
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
+}
+
+function currentTheme() {
+  const saved = localStorage.getItem(themeKey);
+  if (saved) return saved;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+applyTheme(localStorage.getItem(themeKey));
+
+themeToggle.addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  localStorage.setItem(themeKey, next);
+  applyTheme(next);
+  buzz(8);
+});
+
+/* -------------------- Small helpers -------------------- */
+function buzz(ms) {
+  if (!prefersReducedMotion && navigator.vibrate) navigator.vibrate(ms);
 }
 
 function setSyncStatus(message, state = "") {
@@ -70,40 +105,80 @@ function setSyncStatus(message, state = "") {
   syncStatus.dataset.state = state;
 }
 
+function showToast(message, actionLabel, onAction) {
+  clearTimeout(toastTimer);
+  toast.replaceChildren();
+  toast.append(document.createTextNode(message));
+
+  if (actionLabel && onAction) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = actionLabel;
+    button.addEventListener("click", () => {
+      hideToast();
+      onAction();
+    });
+    toast.append(button);
+  }
+
+  toast.classList.add("show");
+  toastTimer = setTimeout(hideToast, 4200);
+}
+
+function hideToast() {
+  toast.classList.remove("show");
+}
+
+function moveFilterPill() {
+  const active = document.querySelector(".filter.active");
+  if (!active) return;
+  filterPill.style.width = `${active.offsetWidth}px`;
+  filterPill.style.transform = `translateX(${active.offsetLeft - 5}px)`;
+}
+
+/* -------------------- Render -------------------- */
 function visibleItems() {
-  if (activeFilter === "active") {
-    return items.filter((item) => !item.bought);
-  }
-
-  if (activeFilter === "bought") {
-    return items.filter((item) => item.bought);
-  }
-
+  if (activeFilter === "active") return items.filter((item) => !item.bought);
+  if (activeFilter === "bought") return items.filter((item) => item.bought);
   return items;
 }
 
 function render() {
   const filteredItems = visibleItems();
-
   const fragment = document.createDocumentFragment();
+  let newCount = 0;
 
-  filteredItems.forEach((item) => {
+  filteredItems.forEach((item, index) => {
     const listItem = itemTemplate.content.firstElementChild.cloneNode(true);
+    const surface = listItem.querySelector(".item-surface");
 
     listItem.dataset.id = item.id;
     listItem.classList.toggle("bought", item.bought);
+    surface.dataset.cat = item.category;
     listItem.querySelector(".item-title").textContent = item.name;
-    listItem.querySelector(".item-meta").textContent =
-      `${item.quantity || "1"} · ${item.category}`;
+    listItem.querySelector(".item-qty").textContent = `${item.quantity || "1"} ·`;
+    listItem.querySelector(".item-cat").textContent = item.category;
     listItem.querySelector(".check-button").setAttribute(
       "aria-label",
       item.bought ? `Mark ${item.name} as not bought` : `Mark ${item.name} as bought`,
     );
 
+    // Animate only items we haven't seen before (fresh adds / sync arrivals).
+    if (!knownIds.has(item.id) && !prefersReducedMotion) {
+      listItem.classList.add("entering");
+      listItem.style.setProperty("--i", newCount++);
+      listItem.addEventListener(
+        "animationend",
+        () => listItem.classList.remove("entering"),
+        { once: true },
+      );
+    }
+
     fragment.append(listItem);
   });
 
   itemList.replaceChildren(fragment);
+  knownIds = new Set(items.map((item) => item.id));
 
   remainingCount.textContent = items.filter((item) => !item.bought).length;
   clearBoughtButton.disabled = !items.some((item) => item.bought);
@@ -116,6 +191,23 @@ function render() {
     emptyTitle.textContent = "Your list is empty";
     emptyText.textContent = "Add the first thing you need above.";
   }
+}
+
+function bumpCount() {
+  if (prefersReducedMotion) return;
+  itemCountBox.classList.remove("bump");
+  void itemCountBox.offsetWidth; // restart animation
+  itemCountBox.classList.add("bump");
+  itemCountBox.addEventListener(
+    "transitionend",
+    () => itemCountBox.classList.remove("bump"),
+    { once: true },
+  );
+}
+
+/* -------------------- Firebase -------------------- */
+function isFirebaseConfigured() {
+  return Object.values(firebaseConfig).every((value) => value && !value.startsWith("PASTE_"));
 }
 
 async function connectToFirebase() {
@@ -154,42 +246,47 @@ async function connectToFirebase() {
   }
 }
 
+function itemFields(item) {
+  return {
+    name: item.name,
+    quantity: item.quantity,
+    category: item.category,
+    bought: item.bought,
+    createdAt: item.createdAt,
+  };
+}
+
+async function createItem(item) {
+  if (onlineStore) {
+    const { firestore, itemsCollection } = onlineStore;
+    await firestore.setDoc(firestore.doc(itemsCollection, item.id), itemFields(item));
+    return;
+  }
+  items.unshift(item);
+  saveItems();
+  render();
+}
+
 async function addItem(name, quantity, category) {
-  const item = {
+  await createItem({
     id: crypto.randomUUID(),
     name,
     quantity,
     category,
     bought: false,
     createdAt: Date.now(),
-  };
-
-  if (onlineStore) {
-    const { firestore, itemsCollection } = onlineStore;
-    await firestore.setDoc(firestore.doc(itemsCollection, item.id), {
-      name: item.name,
-      quantity: item.quantity,
-      category: item.category,
-      bought: item.bought,
-      createdAt: item.createdAt,
-    });
-    return;
-  }
-
-  items.unshift(item);
-  saveItems();
-  render();
+  });
 }
 
 async function toggleItem(id) {
   const item = items.find((candidate) => candidate.id === id);
   if (!item) return;
 
+  if (!item.bought) buzz(12);
+
   if (onlineStore) {
     const { firestore, itemsCollection } = onlineStore;
-    await firestore.updateDoc(firestore.doc(itemsCollection, id), {
-      bought: !item.bought,
-    });
+    await firestore.updateDoc(firestore.doc(itemsCollection, id), { bought: !item.bought });
     return;
   }
 
@@ -200,40 +297,95 @@ async function toggleItem(id) {
   render();
 }
 
-async function deleteItem(id) {
+async function removeItem(id) {
   if (onlineStore) {
     const { firestore, itemsCollection } = onlineStore;
     await firestore.deleteDoc(firestore.doc(itemsCollection, id));
     return;
   }
-
   items = items.filter((item) => item.id !== id);
   saveItems();
   render();
 }
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
+// Delete with an Undo affordance (re-creates the same item, preserving order).
+async function deleteItem(id) {
+  const item = items.find((candidate) => candidate.id === id);
+  if (!item) return;
+  const snapshot = { ...item };
 
-  const name = itemName.value.trim();
-  const quantity = itemQuantity.value.trim();
+  buzz(10);
+  await removeItem(id);
 
-  if (!name) {
-    itemName.focus();
-    return;
+  showToast(`Removed "${snapshot.name}"`, "Undo", () => {
+    knownIds.delete(snapshot.id); // let it animate back in
+    createItem(snapshot);
+  });
+}
+
+/* -------------------- Swipe to delete -------------------- */
+const SWIPE_THRESHOLD = 90;
+let drag = null;
+
+itemList.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (event.pointerType === "mouse") return; // mouse uses the delete button
+    const surface = event.target.closest(".item-surface");
+    if (!surface) return;
+    if (event.target.closest(".check-button") || event.target.closest(".delete-button")) return;
+
+    const listItem = surface.closest(".list-item");
+    drag = { listItem, surface, startX: event.clientX, startY: event.clientY, dx: 0, locked: null };
+  },
+  { passive: true },
+);
+
+itemList.addEventListener("pointermove", (event) => {
+  if (!drag) return;
+  const dx = event.clientX - drag.startX;
+  const dy = event.clientY - drag.startY;
+
+  // Decide once whether this gesture is a horizontal swipe or a vertical scroll.
+  if (drag.locked === null) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    drag.locked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (drag.locked === "x") drag.listItem.classList.add("dragging");
   }
+  if (drag.locked !== "x") return;
 
-  await addItem(name, quantity, itemCategory.value);
-  form.reset();
-  itemName.focus();
+  drag.dx = Math.min(0, dx); // left-swipe only
+  drag.surface.style.transform = `translateX(${drag.dx}px)`;
+  drag.listItem.classList.toggle("will-delete", drag.dx < -SWIPE_THRESHOLD);
 });
 
-// One delegated listener for the whole list, instead of re-binding two
-// handlers per item on every render.
+function endDrag() {
+  if (!drag) return;
+  const { listItem, surface, dx, locked } = drag;
+  const dragged = drag;
+  drag = null;
+
+  listItem.classList.remove("dragging");
+  if (locked !== "x") return;
+
+  if (dx < -SWIPE_THRESHOLD) {
+    surface.style.transform = "translateX(-110%)";
+    listItem.classList.add("leaving");
+    listItem.addEventListener("animationend", () => deleteItem(listItem.dataset.id), { once: true });
+  } else {
+    surface.style.transform = "";
+    listItem.classList.remove("will-delete");
+  }
+  void dragged;
+}
+
+itemList.addEventListener("pointerup", endDrag);
+itemList.addEventListener("pointercancel", endDrag);
+
+/* -------------------- Click delegation -------------------- */
 itemList.addEventListener("click", (event) => {
   const listItem = event.target.closest(".list-item");
   if (!listItem) return;
-
   const { id } = listItem.dataset;
 
   if (event.target.closest(".check-button")) {
@@ -243,17 +395,37 @@ itemList.addEventListener("click", (event) => {
   }
 });
 
-clearBoughtButton.addEventListener("click", async () => {
-  const boughtItems = items.filter((item) => item.bought);
+/* -------------------- Form & filters -------------------- */
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const name = itemName.value.trim();
+  const quantity = itemQuantity.value.trim();
 
-  if (onlineStore) {
-    await Promise.all(boughtItems.map((item) => deleteItem(item.id)));
+  if (!name) {
+    itemName.focus();
     return;
   }
 
-  items = items.filter((item) => !item.bought);
-  saveItems();
-  render();
+  buzz(8);
+  bumpCount();
+  await addItem(name, quantity, itemCategory.value);
+  form.reset();
+  itemName.focus();
+});
+
+clearBoughtButton.addEventListener("click", async () => {
+  const boughtItems = items.filter((item) => item.bought);
+  if (boughtItems.length === 0) return;
+
+  buzz(10);
+  if (onlineStore) {
+    await Promise.all(boughtItems.map((item) => removeItem(item.id)));
+  } else {
+    items = items.filter((item) => !item.bought);
+    saveItems();
+    render();
+  }
+  showToast(`Cleared ${boughtItems.length} bought item${boughtItems.length > 1 ? "s" : ""}`);
 });
 
 filterButtons.forEach((button) => {
@@ -261,9 +433,60 @@ filterButtons.forEach((button) => {
     activeFilter = button.dataset.filter;
     filterButtons.forEach((filter) => filter.classList.remove("active"));
     button.classList.add("active");
+    moveFilterPill();
     render();
   });
 });
 
+/* -------------------- Share & install -------------------- */
+shareButton.addEventListener("click", async () => {
+  const url = window.location.href;
+  const shareData = { title: "Our Buy List", text: "Here's our shared shopping list:", url };
+
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return;
+    }
+  } catch {
+    return; // user cancelled the share sheet
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("Link copied to clipboard");
+  } catch {
+    showToast("Copy this page's link to share");
+  }
+});
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  installButton.hidden = false;
+});
+
+installButton.addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  installButton.hidden = true;
+});
+
+window.addEventListener("appinstalled", () => {
+  installButton.hidden = true;
+  showToast("Installed — find it on your home screen");
+});
+
+/* -------------------- Boot -------------------- */
+window.addEventListener("resize", moveFilterPill);
 render();
+moveFilterPill();
 connectToFirebase();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}

@@ -2,26 +2,82 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f7f3ea" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1c1d1a" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="A little shared list for the things we need." />
+
     <title>Our Buy List</title>
+
+    <link rel="manifest" href="manifest.json" />
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Buy List" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&display=swap"
+    />
     <link rel="stylesheet" href="styles.css" />
     <script src="app.js" type="module"></script>
   </head>
   <body>
+    <!-- Icon sprite: one consistent line set (Lucide-style, 2px stroke). -->
+    <svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6" />
+        <path d="M10 11v6M14 11v6" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+      </symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" />
+      </symbol>
+      <symbol id="i-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 8h12l-1 12H7L6 8Z" />
+        <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+      </symbol>
+      <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12M8 7l4-4 4 4" />
+        <path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
+      </symbol>
+      <symbol id="i-install" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12M8 11l4 4 4-4" />
+        <path d="M5 21h14" />
+      </symbol>
+    </svg>
+
     <main class="app-shell">
       <header class="page-header">
-        <div>
+        <div class="header-text">
           <p class="eyebrow">For our home</p>
           <h1>Our Buy List</h1>
-          <p class="subtitle">
-            A little list for the things we need.
-            <span id="sync-status" class="sync-status">Saved on this device</span>
-          </p>
+          <p class="subtitle">A little list for the things we need.</p>
+          <span id="sync-status" class="sync-status" aria-live="polite">Saved on this device</span>
         </div>
-        <div class="item-count" aria-live="polite">
-          <strong id="remaining-count">0</strong>
-          <span>left</span>
+
+        <div class="header-side">
+          <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme">
+            <svg class="icon icon-sun" aria-hidden="true"><use href="#i-sun" /></svg>
+            <svg class="icon icon-moon" aria-hidden="true"><use href="#i-moon" /></svg>
+          </button>
+          <div class="item-count" aria-live="polite">
+            <strong id="remaining-count">0</strong>
+            <span>left</span>
+          </div>
         </div>
       </header>
 
@@ -36,6 +92,7 @@
               maxlength="80"
               placeholder="Milk, soap, coffee..."
               autocomplete="off"
+              enterkeyhint="done"
               required
             />
           </label>
@@ -47,6 +104,7 @@
                 id="item-quantity"
                 type="text"
                 maxlength="20"
+                inputmode="text"
                 placeholder="1"
                 autocomplete="off"
               />
@@ -63,19 +121,21 @@
             </label>
           </div>
 
-          <button class="primary-button" type="submit">Add to list</button>
+          <button class="primary-button" type="submit">
+            <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+            <span>Add to list</span>
+          </button>
         </form>
       </section>
 
       <section class="list-section" aria-labelledby="list-title">
         <div class="list-heading">
           <h2 id="list-title">Things to buy</h2>
-          <button id="clear-bought" class="text-button" type="button">
-            Clear bought
-          </button>
+          <button id="clear-bought" class="text-button" type="button">Clear bought</button>
         </div>
 
         <div class="filters" role="group" aria-label="Filter list">
+          <span class="filter-pill" aria-hidden="true"></span>
           <button class="filter active" data-filter="all" type="button">All</button>
           <button class="filter" data-filter="active" type="button">To buy</button>
           <button class="filter" data-filter="bought" type="button">Bought</button>
@@ -84,25 +144,48 @@
         <ul id="item-list" class="item-list"></ul>
 
         <div id="empty-state" class="empty-state">
-          <div class="empty-icon" aria-hidden="true">✓</div>
+          <div class="empty-icon" aria-hidden="true">
+            <svg class="icon"><use href="#i-bag" /></svg>
+          </div>
           <h3>Your list is empty</h3>
           <p>Add the first thing you need above.</p>
         </div>
       </section>
+
+      <footer class="app-footer">
+        <button id="share-button" class="ghost-button" type="button">
+          <svg class="icon" aria-hidden="true"><use href="#i-share" /></svg>
+          <span>Share this list</span>
+        </button>
+        <button id="install-button" class="ghost-button" type="button" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-install" /></svg>
+          <span>Install app</span>
+        </button>
+      </footer>
     </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <template id="item-template">
       <li class="list-item">
-        <button class="check-button" type="button" aria-label="Mark as bought">
-          <span aria-hidden="true">✓</span>
-        </button>
-        <div class="item-details">
-          <p class="item-title"></p>
-          <p class="item-meta"></p>
+        <div class="item-swipe-bg" aria-hidden="true">
+          <svg class="icon"><use href="#i-trash" /></svg>
         </div>
-        <button class="delete-button" type="button" aria-label="Delete item">
-          Delete
-        </button>
+        <div class="item-surface">
+          <button class="check-button" type="button" aria-label="Mark as bought">
+            <svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+          </button>
+          <div class="item-details">
+            <p class="item-title"></p>
+            <p class="item-meta">
+              <span class="item-qty"></span>
+              <span class="item-cat"></span>
+            </p>
+          </div>
+          <button class="delete-button" type="button" aria-label="Delete item">
+            <svg class="icon" aria-hidden="true"><use href="#i-trash" /></svg>
+          </button>
+        </div>
       </li>
     </template>
   </body>
