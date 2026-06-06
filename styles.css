@@ -828,6 +828,114 @@ select:focus {
 
 :root[data-theme="dark"] .toast button { color: var(--accent); }
 
+/* -------------------- Passcode lock -------------------- */
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top, var(--bg-glow), transparent 60%),
+    var(--bg);
+}
+
+.lock-screen.hidden,
+html.unlocked .lock-screen {
+  display: none;
+}
+
+.lock-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: min(100%, 320px);
+  padding: 40px 28px;
+  text-align: center;
+}
+
+.lock-card h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.lock-card p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.lock-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.lock-icon .icon {
+  width: 30px;
+  height: 30px;
+}
+
+.pin-dots {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.pin-dots span {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  transition: transform 160ms var(--ease-spring), background-color 160ms, border-color 160ms;
+}
+
+.pin-dots span.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.15);
+}
+
+/* The real input is invisible but covers the card, so a tap anywhere
+   focuses it and brings up the numeric keypad. */
+.pin-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  caret-color: transparent;
+  cursor: pointer;
+}
+
+.pin-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.lock-card.shake {
+  animation: shake 0.4s var(--ease-out);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-9px); }
+  40%, 80% { transform: translateX(9px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lock-card.shake { animation: none; }
+}
+
 /* -------------------- List switcher -------------------- */
 .lists-bar {
   display: flex;

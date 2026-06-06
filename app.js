@@ -655,12 +655,65 @@ window.addEventListener("appinstalled", () => {
   showToast("Installed — find it on your home screen");
 });
 
+/* -------------------- Passcode gate -------------------- */
+const PASSCODE = "2207";
+const unlockKey = "our-buy-list-unlocked";
+const lockScreen = document.querySelector("#lock-screen");
+const lockCard = document.querySelector(".lock-card");
+const pinInput = document.querySelector("#pin-input");
+const pinDots = document.querySelectorAll(".pin-dots span");
+
+let appStarted = false;
+
+function startApp() {
+  if (appStarted) return;
+  appStarted = true;
+  renderListTabs();
+  render();
+  moveFilterPill();
+  connectToFirebase();
+}
+
+function unlock() {
+  lockScreen.classList.add("hidden");
+  startApp();
+}
+
+function updateDots(count) {
+  pinDots.forEach((dot, i) => dot.classList.toggle("filled", i < count));
+}
+
+if (localStorage.getItem(unlockKey) === "yes") {
+  unlock();
+} else {
+  pinInput.focus();
+  lockCard.addEventListener("click", () => pinInput.focus());
+
+  pinInput.addEventListener("input", () => {
+    const value = pinInput.value.replace(/\D/g, "").slice(0, 4);
+    pinInput.value = value;
+    updateDots(value.length);
+    if (value.length < 4) return;
+
+    if (value === PASSCODE) {
+      localStorage.setItem(unlockKey, "yes");
+      buzz(8);
+      unlock();
+    } else {
+      buzz(30);
+      lockCard.classList.add("shake");
+      setTimeout(() => {
+        pinInput.value = "";
+        updateDots(0);
+        lockCard.classList.remove("shake");
+        pinInput.focus();
+      }, 440);
+    }
+  });
+}
+
 /* -------------------- Boot -------------------- */
 window.addEventListener("resize", moveFilterPill);
-renderListTabs();
-render();
-moveFilterPill();
-connectToFirebase();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
