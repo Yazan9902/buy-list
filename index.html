@@ -58,6 +58,10 @@
         <path d="M12 3v12M8 11l4 4 4-4" />
         <path d="M5 21h14" />
       </symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </symbol>
     </svg>
 
     <main class="app-shell">
@@ -81,7 +85,15 @@
         </div>
       </header>
 
-      <section class="card add-card" aria-labelledby="add-title">
+      <!-- List switcher -->
+      <nav class="lists-bar" aria-label="Your lists">
+        <div id="lists-tabs" class="lists-tabs"></div>
+        <button id="add-list" class="add-list-button" type="button" aria-label="New list">
+          <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+        </button>
+      </nav>
+
+      <section class="card add-card" id="add-card" aria-labelledby="add-title">
         <h2 id="add-title">Add something</h2>
         <form id="item-form">
           <label class="item-name-field">
@@ -131,7 +143,13 @@
       <section class="list-section" aria-labelledby="list-title">
         <div class="list-heading">
           <h2 id="list-title">Things to buy</h2>
-          <button id="clear-bought" class="text-button" type="button">Clear bought</button>
+          <div class="list-actions">
+            <button id="rename-list" class="icon-text-button" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#i-edit" /></svg>
+              <span>Edit list</span>
+            </button>
+            <button id="clear-bought" class="text-button" type="button">Clear bought</button>
+          </div>
         </div>
 
         <div class="filters" role="group" aria-label="Filter list">
@@ -149,13 +167,17 @@
           </div>
           <h3>Your list is empty</h3>
           <p>Add the first thing you need above.</p>
+          <button id="empty-action" class="primary-button" type="button" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg>
+            <span>New list</span>
+          </button>
         </div>
       </section>
 
       <footer class="app-footer">
         <button id="share-button" class="ghost-button" type="button">
           <svg class="icon" aria-hidden="true"><use href="#i-share" /></svg>
-          <span>Share this list</span>
+          <span>Share these lists</span>
         </button>
         <button id="install-button" class="ghost-button" type="button" hidden>
           <svg class="icon" aria-hidden="true"><use href="#i-install" /></svg>
@@ -165,6 +187,23 @@
     </main>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Create / rename / delete a list -->
+    <dialog id="list-dialog" class="dialog">
+      <form method="dialog" id="list-form" class="dialog-body">
+        <h2 id="dialog-title">New list</h2>
+        <label>
+          <span>List name</span>
+          <input id="list-name-input" type="text" maxlength="60" placeholder="Supermarket, House, Trip..." autocomplete="off" enterkeyhint="done" required />
+        </label>
+        <div class="dialog-actions">
+          <button id="dialog-delete" class="text-button danger-button" type="button" hidden>Delete list</button>
+          <span class="dialog-spacer"></span>
+          <button id="dialog-cancel" class="ghost-button" type="button">Cancel</button>
+          <button id="dialog-save" class="primary-button compact" type="submit">Save</button>
+        </div>
+      </form>
+    </dialog>
 
     <template id="item-template">
       <li class="list-item">
@@ -187,6 +226,10 @@
           </button>
         </div>
       </li>
+    </template>
+
+    <template id="list-tab-template">
+      <button class="list-tab" type="button"></button>
     </template>
   </body>
 </html>

@@ -1,5 +1,5 @@
 // Bump this version to force the cache to refresh after a deploy.
-const CACHE = "buy-list-v1";
+const CACHE = "buy-list-v2";
 
 // App shell — the files needed to render the UI offline. Firebase SDK and
 // list data are intentionally network-first (handled below), not precached.

@@ -2,28 +2,49 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each list uses a random ID in its shared URL. Keep that URL private.
-    match /lists/{listId}/items/{itemId} {
-      allow read: if listId.size() >= 30 && listId.size() <= 80;
-      allow create: if listId.size() >= 30
-        && listId.size() <= 80
-        && request.resource.data.keys().hasOnly([
-          'name', 'quantity', 'category', 'bought', 'createdAt'
-        ])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 80
-        && request.resource.data.quantity is string
-        && request.resource.data.quantity.size() <= 20
-        && request.resource.data.category in [
-          'Groceries', 'Home', 'Personal', 'Other'
-        ]
-        && request.resource.data.bought is bool
-        && request.resource.data.createdAt is int;
-      allow update: if listId.size() >= 30
-        && listId.size() <= 80
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bought'])
-        && request.resource.data.bought is bool;
-      allow delete: if listId.size() >= 30 && listId.size() <= 80;
+    // A "board" is one shared space (its random ID lives in the shared URL).
+    // It holds many named lists, each with its own items. Keep the URL private.
+    match /boards/{boardId} {
+      match /lists/{listId} {
+        allow read: if boardId.size() >= 30 && boardId.size() <= 80;
+        allow create: if boardId.size() >= 30
+          && boardId.size() <= 80
+          && request.resource.data.keys().hasOnly(['name', 'createdAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 60
+          && request.resource.data.createdAt is int;
+        allow update: if boardId.size() >= 30
+          && boardId.size() <= 80
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() >= 1
+          && request.resource.data.name.size() <= 60;
+        allow delete: if boardId.size() >= 30 && boardId.size() <= 80;
+
+        match /items/{itemId} {
+          allow read: if boardId.size() >= 30 && boardId.size() <= 80;
+          allow create: if boardId.size() >= 30
+            && boardId.size() <= 80
+            && request.resource.data.keys().hasOnly([
+              'name', 'quantity', 'category', 'bought', 'createdAt'
+            ])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() <= 80
+            && request.resource.data.quantity is string
+            && request.resource.data.quantity.size() <= 20
+            && request.resource.data.category in [
+              'Groceries', 'Home', 'Personal', 'Other'
+            ]
+            && request.resource.data.bought is bool
+            && request.resource.data.createdAt is int;
+          allow update: if boardId.size() >= 30
+            && boardId.size() <= 80
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bought'])
+            && request.resource.data.bought is bool;
+          allow delete: if boardId.size() >= 30 && boardId.size() <= 80;
+        }
+      }
     }
   }
 }

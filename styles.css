@@ -828,6 +828,178 @@ select:focus {
 
 :root[data-theme="dark"] .toast button { color: var(--accent); }
 
+/* -------------------- List switcher -------------------- */
+.lists-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.lists-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px;
+  margin: -4px;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.lists-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.list-tab {
+  flex: none;
+  padding: 9px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  transition: transform 140ms var(--ease-out), color var(--dur), border-color var(--dur),
+    background-color var(--dur);
+}
+
+.list-tab[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.list-tab:active {
+  transform: scale(0.95);
+}
+
+.add-list-button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--accent);
+  transition: transform 140ms var(--ease-out), border-color var(--dur), background-color var(--dur);
+}
+
+.add-list-button .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.add-list-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.add-list-button:active {
+  transform: scale(0.92);
+}
+
+.list-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: color 160ms var(--ease-out), background-color 160ms var(--ease-out);
+}
+
+.icon-text-button .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.icon-text-button:hover {
+  color: var(--accent);
+}
+
+/* When no list exists yet, hide the add-item card and lean on the empty state. */
+body.no-list .add-card,
+body.no-list .list-heading,
+body.no-list .filters {
+  display: none;
+}
+
+#empty-action {
+  margin-top: 18px;
+  padding: 0 22px;
+  min-height: 46px;
+}
+
+/* -------------------- Dialog -------------------- */
+.dialog {
+  width: min(92vw, 380px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+}
+
+.dialog::backdrop {
+  background: rgba(20, 18, 12, 0.5);
+  backdrop-filter: blur(3px);
+}
+
+.dialog[open] {
+  animation: dialog-in 280ms var(--ease-spring);
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.dialog-body {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.dialog-body h2 {
+  margin: 0;
+}
+
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.dialog-spacer {
+  flex: 1;
+}
+
+.danger-button {
+  color: var(--danger);
+  padding: 8px 6px;
+}
+
+.primary-button.compact {
+  min-height: 44px;
+  padding: 0 20px;
+}
+
 /* -------------------- Responsive -------------------- */
 @media (max-width: 560px) {
   .app-shell {

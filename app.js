@@ -1,6 +1,6 @@
 import { firebaseConfig } from "./firebase-config.js";
 
-const listIdKey = "our-buy-list-id";
+const boardIdKey = "our-buy-list-id"; // the shared space id (kept in the URL)
 const themeKey = "our-buy-list-theme";
 const firebaseVersion = "12.7.0";
 
@@ -10,9 +10,15 @@ const itemQuantity = document.querySelector("#item-quantity");
 const itemCategory = document.querySelector("#item-category");
 const itemList = document.querySelector("#item-list");
 const itemTemplate = document.querySelector("#item-template");
+const listTabTemplate = document.querySelector("#list-tab-template");
+const listsTabs = document.querySelector("#lists-tabs");
+const addListButton = document.querySelector("#add-list");
+const renameListButton = document.querySelector("#rename-list");
+const listTitle = document.querySelector("#list-title");
 const emptyState = document.querySelector("#empty-state");
 const emptyTitle = emptyState.querySelector("h3");
 const emptyText = emptyState.querySelector("p");
+const emptyAction = document.querySelector("#empty-action");
 const remainingCount = document.querySelector("#remaining-count");
 const itemCountBox = document.querySelector(".item-count");
 const clearBoughtButton = document.querySelector("#clear-bought");
@@ -24,44 +30,69 @@ const shareButton = document.querySelector("#share-button");
 const installButton = document.querySelector("#install-button");
 const toast = document.querySelector("#toast");
 
-// Resolve the list id once. It lives in the shareable ?list= URL and is the
-// only thing tying both phones to the same list, so the local cache is keyed
-// to it — switching lists never shows another list's stale items.
-const listId = getListId();
-const storageKey = `our-buy-list-items:${listId}`;
+const dialog = document.querySelector("#list-dialog");
+const dialogForm = document.querySelector("#list-form");
+const dialogTitle = document.querySelector("#dialog-title");
+const listNameInput = document.querySelector("#list-name-input");
+const dialogDelete = document.querySelector("#dialog-delete");
+const dialogCancel = document.querySelector("#dialog-cancel");
 
-let items = loadItems();
+// The board id (shared space) lives in the ?list= URL. All of this couple's
+// named lists live inside it, so one shared link covers every list.
+const boardId = getBoardId();
+const listsKey = `our-buy-list-lists:${boardId}`;
+const activeKey = `our-buy-list-active:${boardId}`;
+const itemsKeyFor = (listId) => `our-buy-list-items:${boardId}:${listId}`;
+
+let lists = loadLists();
+let activeListId = localStorage.getItem(activeKey) || lists[0]?.id || null;
+let items = activeListId ? loadItems(activeListId) : [];
 let activeFilter = "all";
-let onlineStore = null;
-let knownIds = new Set(items.map((item) => item.id)); // for entrance animations
+let online = null;
+let itemsUnsub = null;
+let subscribedListId = null;
+let knownIds = new Set(items.map((item) => item.id));
 let installPrompt = null;
 let toastTimer = null;
+let dialogMode = "create";
 
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* -------------------- Storage -------------------- */
-function loadItems() {
+function readJSON(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(storageKey)) ?? [];
+    return JSON.parse(localStorage.getItem(key)) ?? fallback;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
-function saveItems() {
-  localStorage.setItem(storageKey, JSON.stringify(items));
+function loadLists() {
+  return readJSON(listsKey, []);
 }
 
-function getListId() {
+function saveLists() {
+  localStorage.setItem(listsKey, JSON.stringify(lists));
+}
+
+function loadItems(listId) {
+  return readJSON(itemsKeyFor(listId), []);
+}
+
+function saveItems() {
+  if (activeListId) localStorage.setItem(itemsKeyFor(activeListId), JSON.stringify(items));
+}
+
+function getBoardId() {
   const url = new URL(window.location.href);
   let rawId = url.searchParams.get("list");
 
   if (!rawId) {
-    rawId = localStorage.getItem(listIdKey) || crypto.randomUUID();
+    rawId = localStorage.getItem(boardIdKey) || crypto.randomUUID();
   }
 
   const cleanId = rawId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 80);
-  localStorage.setItem(listIdKey, cleanId);
+  localStorage.setItem(boardIdKey, cleanId);
 
   if (url.searchParams.get("list") !== cleanId) {
     url.searchParams.set("list", cleanId);
@@ -69,6 +100,10 @@ function getListId() {
   }
 
   return cleanId;
+}
+
+function activeList() {
+  return lists.find((list) => list.id === activeListId) || null;
 }
 
 /* -------------------- Theme -------------------- */
@@ -107,8 +142,7 @@ function setSyncStatus(message, state = "") {
 
 function showToast(message, actionLabel, onAction) {
   clearTimeout(toastTimer);
-  toast.replaceChildren();
-  toast.append(document.createTextNode(message));
+  toast.replaceChildren(document.createTextNode(message));
 
   if (actionLabel && onAction) {
     const button = document.createElement("button");
@@ -136,7 +170,29 @@ function moveFilterPill() {
   filterPill.style.transform = `translateX(${active.offsetLeft - 5}px)`;
 }
 
-/* -------------------- Render -------------------- */
+/* -------------------- Render: list tabs -------------------- */
+function renderListTabs() {
+  listsTabs.replaceChildren();
+
+  lists.forEach((list) => {
+    const tab = listTabTemplate.content.firstElementChild.cloneNode(true);
+    tab.textContent = list.name;
+    tab.dataset.id = list.id;
+    if (list.id === activeListId) tab.setAttribute("aria-current", "true");
+    listsTabs.append(tab);
+  });
+
+  const current = activeList();
+  document.body.classList.toggle("no-list", lists.length === 0);
+  renameListButton.hidden = !current;
+  listTitle.textContent = current ? current.name : "Your lists";
+
+  // keep the active tab in view
+  const activeTab = listsTabs.querySelector('[aria-current="true"]');
+  if (activeTab) activeTab.scrollIntoView({ inline: "nearest", block: "nearest" });
+}
+
+/* -------------------- Render: items -------------------- */
 function visibleItems() {
   if (activeFilter === "active") return items.filter((item) => !item.bought);
   if (activeFilter === "bought") return items.filter((item) => item.bought);
@@ -148,7 +204,7 @@ function render() {
   const fragment = document.createDocumentFragment();
   let newCount = 0;
 
-  filteredItems.forEach((item, index) => {
+  filteredItems.forEach((item) => {
     const listItem = itemTemplate.content.firstElementChild.cloneNode(true);
     const surface = listItem.querySelector(".item-surface");
 
@@ -163,15 +219,12 @@ function render() {
       item.bought ? `Mark ${item.name} as not bought` : `Mark ${item.name} as bought`,
     );
 
-    // Animate only items we haven't seen before (fresh adds / sync arrivals).
     if (!knownIds.has(item.id) && !prefersReducedMotion) {
       listItem.classList.add("entering");
       listItem.style.setProperty("--i", newCount++);
-      listItem.addEventListener(
-        "animationend",
-        () => listItem.classList.remove("entering"),
-        { once: true },
-      );
+      listItem.addEventListener("animationend", () => listItem.classList.remove("entering"), {
+        once: true,
+      });
     }
 
     fragment.append(listItem);
@@ -184,30 +237,81 @@ function render() {
   clearBoughtButton.disabled = !items.some((item) => item.bought);
   emptyState.classList.toggle("hidden", filteredItems.length > 0);
 
-  if (filteredItems.length === 0 && items.length > 0) {
+  if (lists.length === 0) {
+    emptyTitle.textContent = "No lists yet";
+    emptyText.textContent = "Create your first list to get started.";
+    emptyAction.hidden = false;
+  } else if (items.length === 0) {
+    emptyTitle.textContent = "This list is empty";
+    emptyText.textContent = "Add the first thing you need above.";
+    emptyAction.hidden = true;
+  } else {
     emptyTitle.textContent = "Nothing here";
     emptyText.textContent = "Try another filter.";
-  } else {
-    emptyTitle.textContent = "Your list is empty";
-    emptyText.textContent = "Add the first thing you need above.";
+    emptyAction.hidden = true;
   }
 }
 
 function bumpCount() {
   if (prefersReducedMotion) return;
   itemCountBox.classList.remove("bump");
-  void itemCountBox.offsetWidth; // restart animation
+  void itemCountBox.offsetWidth;
   itemCountBox.classList.add("bump");
-  itemCountBox.addEventListener(
-    "transitionend",
-    () => itemCountBox.classList.remove("bump"),
-    { once: true },
-  );
+  itemCountBox.addEventListener("transitionend", () => itemCountBox.classList.remove("bump"), {
+    once: true,
+  });
+}
+
+/* -------------------- Active list selection -------------------- */
+function setActiveList(id) {
+  activeListId = id;
+  if (id) localStorage.setItem(activeKey, id);
+  else localStorage.removeItem(activeKey);
+
+  knownIds = new Set(); // let the new list's items animate in
+  items = id ? loadItems(id) : [];
+  renderListTabs();
+  render();
+  moveFilterPill();
+
+  if (online) subscribeItems(id);
 }
 
 /* -------------------- Firebase -------------------- */
 function isFirebaseConfigured() {
   return Object.values(firebaseConfig).every((value) => value && !value.startsWith("PASTE_"));
+}
+
+function listsCol() {
+  return online.fb.collection(online.db, "boards", boardId, "lists");
+}
+
+function itemsCol(listId) {
+  return online.fb.collection(online.db, "boards", boardId, "lists", listId, "items");
+}
+
+function subscribeItems(listId) {
+  if (subscribedListId === listId && itemsUnsub) return;
+  if (itemsUnsub) itemsUnsub();
+  itemsUnsub = null;
+  subscribedListId = listId;
+
+  if (!listId) {
+    items = [];
+    render();
+    return;
+  }
+
+  const { fb } = online;
+  itemsUnsub = fb.onSnapshot(
+    fb.query(itemsCol(listId), fb.orderBy("createdAt", "desc")),
+    (snapshot) => {
+      items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      saveItems();
+      render();
+    },
+    () => setSyncStatus("Cannot sync · Check Firebase setup", "error"),
+  );
 }
 
 async function connectToFirebase() {
@@ -222,22 +326,27 @@ async function connectToFirebase() {
     const { initializeApp } = await import(
       `https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js`
     );
-    const firestore = await import(
+    const fb = await import(
       `https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-firestore.js`
     );
     const app = initializeApp(firebaseConfig);
-    const db = firestore.getFirestore(app);
-    const itemsCollection = firestore.collection(db, "lists", listId, "items");
+    const db = fb.getFirestore(app);
+    online = { fb, db };
 
-    onlineStore = { firestore, itemsCollection };
-
-    firestore.onSnapshot(
-      firestore.query(itemsCollection, firestore.orderBy("createdAt", "desc")),
+    fb.onSnapshot(
+      fb.query(listsCol(), fb.orderBy("createdAt", "asc")),
       (snapshot) => {
-        items = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
-        saveItems();
-        render();
-        setSyncStatus("Shared list · Live", "online");
+        lists = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        saveLists();
+
+        if (!activeListId || !lists.some((list) => list.id === activeListId)) {
+          activeListId = lists[0]?.id || null;
+          if (activeListId) localStorage.setItem(activeKey, activeListId);
+        }
+
+        renderListTabs();
+        subscribeItems(activeListId);
+        setSyncStatus("Shared lists · Live", "online");
       },
       () => setSyncStatus("Cannot sync · Check Firebase setup", "error"),
     );
@@ -246,6 +355,51 @@ async function connectToFirebase() {
   }
 }
 
+/* -------------------- List CRUD -------------------- */
+async function createList(name) {
+  const list = { id: crypto.randomUUID(), name, createdAt: Date.now() };
+
+  if (online) {
+    await online.fb.setDoc(online.fb.doc(listsCol(), list.id), {
+      name: list.name,
+      createdAt: list.createdAt,
+    });
+  } else {
+    lists.push(list);
+    saveLists();
+  }
+  setActiveList(list.id);
+  buzz(8);
+}
+
+async function renameList(id, name) {
+  lists = lists.map((list) => (list.id === id ? { ...list, name } : list));
+  if (online) {
+    await online.fb.updateDoc(online.fb.doc(listsCol(), id), { name });
+  } else {
+    saveLists();
+    renderListTabs();
+  }
+}
+
+async function deleteList(id) {
+  const remaining = lists.filter((list) => list.id !== id);
+
+  if (online) {
+    const snapshot = await online.fb.getDocs(itemsCol(id));
+    await Promise.all(snapshot.docs.map((doc) => online.fb.deleteDoc(doc.ref)));
+    await online.fb.deleteDoc(online.fb.doc(listsCol(), id));
+  } else {
+    localStorage.removeItem(itemsKeyFor(id));
+    lists = remaining;
+    saveLists();
+  }
+
+  if (activeListId === id) setActiveList(remaining[0]?.id || null);
+  buzz(12);
+}
+
+/* -------------------- Item CRUD -------------------- */
 function itemFields(item) {
   return {
     name: item.name,
@@ -257,9 +411,9 @@ function itemFields(item) {
 }
 
 async function createItem(item) {
-  if (onlineStore) {
-    const { firestore, itemsCollection } = onlineStore;
-    await firestore.setDoc(firestore.doc(itemsCollection, item.id), itemFields(item));
+  if (!activeListId) return;
+  if (online) {
+    await online.fb.setDoc(online.fb.doc(itemsCol(activeListId), item.id), itemFields(item));
     return;
   }
   items.unshift(item);
@@ -281,15 +435,12 @@ async function addItem(name, quantity, category) {
 async function toggleItem(id) {
   const item = items.find((candidate) => candidate.id === id);
   if (!item) return;
-
   if (!item.bought) buzz(12);
 
-  if (onlineStore) {
-    const { firestore, itemsCollection } = onlineStore;
-    await firestore.updateDoc(firestore.doc(itemsCollection, id), { bought: !item.bought });
+  if (online) {
+    await online.fb.updateDoc(online.fb.doc(itemsCol(activeListId), id), { bought: !item.bought });
     return;
   }
-
   items = items.map((candidate) =>
     candidate.id === id ? { ...candidate, bought: !candidate.bought } : candidate,
   );
@@ -298,9 +449,8 @@ async function toggleItem(id) {
 }
 
 async function removeItem(id) {
-  if (onlineStore) {
-    const { firestore, itemsCollection } = onlineStore;
-    await firestore.deleteDoc(firestore.doc(itemsCollection, id));
+  if (online) {
+    await online.fb.deleteDoc(online.fb.doc(itemsCol(activeListId), id));
     return;
   }
   items = items.filter((item) => item.id !== id);
@@ -308,7 +458,6 @@ async function removeItem(id) {
   render();
 }
 
-// Delete with an Undo affordance (re-creates the same item, preserving order).
 async function deleteItem(id) {
   const item = items.find((candidate) => candidate.id === id);
   if (!item) return;
@@ -318,7 +467,7 @@ async function deleteItem(id) {
   await removeItem(id);
 
   showToast(`Removed "${snapshot.name}"`, "Undo", () => {
-    knownIds.delete(snapshot.id); // let it animate back in
+    knownIds.delete(snapshot.id);
     createItem(snapshot);
   });
 }
@@ -330,7 +479,7 @@ let drag = null;
 itemList.addEventListener(
   "pointerdown",
   (event) => {
-    if (event.pointerType === "mouse") return; // mouse uses the delete button
+    if (event.pointerType === "mouse") return;
     const surface = event.target.closest(".item-surface");
     if (!surface) return;
     if (event.target.closest(".check-button") || event.target.closest(".delete-button")) return;
@@ -346,7 +495,6 @@ itemList.addEventListener("pointermove", (event) => {
   const dx = event.clientX - drag.startX;
   const dy = event.clientY - drag.startY;
 
-  // Decide once whether this gesture is a horizontal swipe or a vertical scroll.
   if (drag.locked === null) {
     if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
     drag.locked = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
@@ -354,7 +502,7 @@ itemList.addEventListener("pointermove", (event) => {
   }
   if (drag.locked !== "x") return;
 
-  drag.dx = Math.min(0, dx); // left-swipe only
+  drag.dx = Math.min(0, dx);
   drag.surface.style.transform = `translateX(${drag.dx}px)`;
   drag.listItem.classList.toggle("will-delete", drag.dx < -SWIPE_THRESHOLD);
 });
@@ -362,7 +510,6 @@ itemList.addEventListener("pointermove", (event) => {
 function endDrag() {
   if (!drag) return;
   const { listItem, surface, dx, locked } = drag;
-  const dragged = drag;
   drag = null;
 
   listItem.classList.remove("dragging");
@@ -376,7 +523,6 @@ function endDrag() {
     surface.style.transform = "";
     listItem.classList.remove("will-delete");
   }
-  void dragged;
 }
 
 itemList.addEventListener("pointerup", endDrag);
@@ -388,11 +534,51 @@ itemList.addEventListener("click", (event) => {
   if (!listItem) return;
   const { id } = listItem.dataset;
 
-  if (event.target.closest(".check-button")) {
-    toggleItem(id);
-  } else if (event.target.closest(".delete-button")) {
-    deleteItem(id);
+  if (event.target.closest(".check-button")) toggleItem(id);
+  else if (event.target.closest(".delete-button")) deleteItem(id);
+});
+
+listsTabs.addEventListener("click", (event) => {
+  const tab = event.target.closest(".list-tab");
+  if (!tab || tab.dataset.id === activeListId) return;
+  setActiveList(tab.dataset.id);
+});
+
+/* -------------------- List dialog -------------------- */
+function openDialog(mode) {
+  dialogMode = mode;
+  const current = activeList();
+  dialogTitle.textContent = mode === "edit" ? "Edit list" : "New list";
+  listNameInput.value = mode === "edit" && current ? current.name : "";
+  dialogDelete.hidden = mode !== "edit";
+  dialog.showModal();
+  listNameInput.focus();
+  listNameInput.select();
+}
+
+addListButton.addEventListener("click", () => openDialog("create"));
+renameListButton.addEventListener("click", () => openDialog("edit"));
+emptyAction.addEventListener("click", () => openDialog("create"));
+dialogCancel.addEventListener("click", () => dialog.close());
+
+dialogForm.addEventListener("submit", (event) => {
+  const name = listNameInput.value.trim();
+  if (!name) {
+    event.preventDefault();
+    listNameInput.focus();
+    return;
   }
+  // method="dialog" closes the dialog automatically after this handler.
+  if (dialogMode === "edit") renameList(activeListId, name);
+  else createList(name);
+});
+
+dialogDelete.addEventListener("click", () => {
+  const current = activeList();
+  if (!current) return;
+  if (!confirm(`Delete "${current.name}" and everything in it?`)) return;
+  dialog.close();
+  deleteList(current.id);
 });
 
 /* -------------------- Form & filters -------------------- */
@@ -418,7 +604,7 @@ clearBoughtButton.addEventListener("click", async () => {
   if (boughtItems.length === 0) return;
 
   buzz(10);
-  if (onlineStore) {
+  if (online) {
     await Promise.all(boughtItems.map((item) => removeItem(item.id)));
   } else {
     items = items.filter((item) => !item.bought);
@@ -441,7 +627,7 @@ filterButtons.forEach((button) => {
 /* -------------------- Share & install -------------------- */
 shareButton.addEventListener("click", async () => {
   const url = window.location.href;
-  const shareData = { title: "Our Buy List", text: "Here's our shared shopping list:", url };
+  const shareData = { title: "Our Buy List", text: "Here are our shared shopping lists:", url };
 
   try {
     if (navigator.share) {
@@ -449,7 +635,7 @@ shareButton.addEventListener("click", async () => {
       return;
     }
   } catch {
-    return; // user cancelled the share sheet
+    return;
   }
 
   try {
@@ -481,6 +667,7 @@ window.addEventListener("appinstalled", () => {
 
 /* -------------------- Boot -------------------- */
 window.addEventListener("resize", moveFilterPill);
+renderListTabs();
 render();
 moveFilterPill();
 connectToFirebase();
