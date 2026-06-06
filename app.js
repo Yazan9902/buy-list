@@ -1,6 +1,9 @@
 import { firebaseConfig } from "./firebase-config.js";
 
-const boardIdKey = "our-buy-list-id"; // the shared space id (kept in the URL)
+// One fixed shared space for our home. Everyone who opens the app (even the
+// plain URL with no ?list= code) lands on the SAME lists automatically — no
+// link to share. A ?list= code in the URL still overrides it if ever needed.
+const DEFAULT_BOARD_ID = "ourhome-35863f257f144d8c93c9e0a439b2fba1";
 const themeKey = "our-buy-list-theme";
 const firebaseVersion = "12.7.0";
 
@@ -37,8 +40,8 @@ const listNameInput = document.querySelector("#list-name-input");
 const dialogDelete = document.querySelector("#dialog-delete");
 const dialogCancel = document.querySelector("#dialog-cancel");
 
-// The board id (shared space) lives in the ?list= URL. All of this couple's
-// named lists live inside it, so one shared link covers every list.
+// The shared space holding all of this couple's named lists. Defaults to one
+// fixed space so both phones see the same lists with no link to share.
 const boardId = getBoardId();
 const listsKey = `our-buy-list-lists:${boardId}`;
 const activeKey = `our-buy-list-active:${boardId}`;
@@ -84,22 +87,9 @@ function saveItems() {
 }
 
 function getBoardId() {
-  const url = new URL(window.location.href);
-  let rawId = url.searchParams.get("list");
-
-  if (!rawId) {
-    rawId = localStorage.getItem(boardIdKey) || crypto.randomUUID();
-  }
-
-  const cleanId = rawId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 80);
-  localStorage.setItem(boardIdKey, cleanId);
-
-  if (url.searchParams.get("list") !== cleanId) {
-    url.searchParams.set("list", cleanId);
-    window.history.replaceState({}, "", url);
-  }
-
-  return cleanId;
+  const param = new URL(window.location.href).searchParams.get("list");
+  const rawId = param || DEFAULT_BOARD_ID;
+  return rawId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 80);
 }
 
 function activeList() {
